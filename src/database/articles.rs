@@ -5,7 +5,7 @@ use crate::schema::favorites;
 use crate::schema::follows;
 use crate::schema::users;
 use diesel;
-use diesel::pg::PgConnection;
+use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
 use diesel::sql_types::{Bool, Text};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
@@ -28,7 +28,7 @@ struct NewArticle<'a> {
 }
 
 pub fn create(
-    conn: &mut PgConnection,
+    conn: &mut MysqlConnection,
     author: i32,
     title: &str,
     description: &str,
@@ -83,7 +83,7 @@ pub struct FindArticles {
 }
 
 pub fn find(
-    conn: &mut PgConnection,
+    conn: &mut MysqlConnection,
     params: &FindArticles,
     user_id: Option<i32>,
 ) -> (Vec<ArticleJson>, i64) {
@@ -142,7 +142,7 @@ pub fn find(
         .expect("Cannot load articles")
 }
 
-pub fn find_one(conn: &mut PgConnection, slug: &str, user_id: Option<i32>) -> Option<ArticleJson> {
+pub fn find_one(conn: &mut MysqlConnection, slug: &str, user_id: Option<i32>) -> Option<ArticleJson> {
     let article = articles::table
         .filter(articles::slug.eq(slug))
         .first::<Article>(conn)
@@ -163,7 +163,7 @@ pub struct FeedArticles {
 }
 
 // select * from articles where author in (select followed from follows where follower = 7);
-pub fn feed(conn: &mut PgConnection, params: &FeedArticles, user_id: i32) -> Vec<ArticleJson> {
+pub fn feed(conn: &mut MysqlConnection, params: &FeedArticles, user_id: i32) -> Vec<ArticleJson> {
     articles::table
         .filter(
             articles::author.eq_any(
@@ -192,7 +192,7 @@ pub fn feed(conn: &mut PgConnection, params: &FeedArticles, user_id: i32) -> Vec
         .collect()
 }
 
-pub fn favorite(conn: &mut PgConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
+pub fn favorite(conn: &mut MysqlConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
     conn.transaction::<_, diesel::result::Error, _>(|conn| {
         let article = diesel::update(articles::table.filter(articles::slug.eq(slug)))
             .set(articles::favorites_count.eq(articles::favorites_count + 1))
@@ -211,7 +211,7 @@ pub fn favorite(conn: &mut PgConnection, slug: &str, user_id: i32) -> Option<Art
     .ok()
 }
 
-pub fn unfavorite(conn: &mut PgConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
+pub fn unfavorite(conn: &mut MysqlConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
     conn.transaction::<_, diesel::result::Error, _>(|conn| {
         let article = diesel::update(articles::table.filter(articles::slug.eq(slug)))
             .set(articles::favorites_count.eq(articles::favorites_count - 1))
@@ -238,7 +238,7 @@ pub struct UpdateArticleData {
 }
 
 pub fn update(
-    conn: &mut PgConnection,
+    conn: &mut MysqlConnection,
     slug: &str,
     user_id: i32,
     mut data: UpdateArticleData,
@@ -256,7 +256,7 @@ pub fn update(
     Some(populate(conn, article, favorited))
 }
 
-pub fn delete(conn: &mut PgConnection, slug: &str, user_id: i32) {
+pub fn delete(conn: &mut MysqlConnection, slug: &str, user_id: i32) {
     let result = diesel::delete(
         articles::table.filter(articles::slug.eq(slug).and(articles::author.eq(user_id))),
     )
@@ -266,7 +266,7 @@ pub fn delete(conn: &mut PgConnection, slug: &str, user_id: i32) {
     }
 }
 
-fn is_favorite(conn: &mut PgConnection, article: &Article, user_id: i32) -> bool {
+fn is_favorite(conn: &mut MysqlConnection, article: &Article, user_id: i32) -> bool {
     use diesel::dsl::exists;
     use diesel::select;
 
@@ -275,7 +275,7 @@ fn is_favorite(conn: &mut PgConnection, article: &Article, user_id: i32) -> bool
         .expect("Error loading favorited")
 }
 
-fn populate(conn: &mut PgConnection, article: Article, favorited: bool) -> ArticleJson {
+fn populate(conn: &mut MysqlConnection, article: Article, favorited: bool) -> ArticleJson {
     let author = users::table
         .find(article.author)
         .get_result::<User>(conn)
@@ -284,7 +284,7 @@ fn populate(conn: &mut PgConnection, article: Article, favorited: bool) -> Artic
     article.attach(author, favorited)
 }
 
-pub fn tags(conn: &mut PgConnection) -> Vec<String> {
+pub fn tags(conn: &mut MysqlConnection) -> Vec<String> {
     articles::table
         .select(diesel::dsl::sql::<Text>("distinct unnest(tag_list)"))
         .load::<String>(conn)

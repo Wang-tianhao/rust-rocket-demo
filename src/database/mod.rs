@@ -34,9 +34,9 @@ pub struct OffsetLimited<T> {
 }
 
 impl<T> OffsetLimited<T> {
-    pub fn load_and_count<'a, U>(self, conn: &mut PgConnection) -> QueryResult<(Vec<U>, i64)>
+    pub fn load_and_count<'a, U>(self, conn: &mut MysqlConnection) -> QueryResult<(Vec<U>, i64)>
     where
-        Self: LoadQuery<'a, PgConnection, (U, i64)>,
+        Self: LoadQuery<'a, MysqlConnection, (U, i64)>,
     {
         let results = self.load::<(U, i64)>(conn)?;
         let total = results.get(0).map(|x| x.1).unwrap_or(0);
@@ -49,7 +49,7 @@ impl<T: Query> Query for OffsetLimited<T> {
     type SqlType = (T::SqlType, BigInt);
 }
 
-impl<T> RunQueryDsl<PgConnection> for OffsetLimited<T> {}
+impl<T> RunQueryDsl<MysqlConnection> for OffsetLimited<T> {}
 
 impl<T> QueryFragment<Pg> for OffsetLimited<T>
 where
