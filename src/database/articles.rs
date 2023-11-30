@@ -1,4 +1,3 @@
-use crate::database::OffsetLimit;
 use crate::models::article::{Article, ArticleJson};
 use crate::models::user::User;
 use crate::schema::articles;
@@ -8,15 +7,17 @@ use crate::schema::users;
 use diesel;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
+use diesel::sql_types::{Bool, Text};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::Deserialize;
 use slug;
+use crate::database::OffsetLimit;
 
 const SUFFIX_LEN: usize = 6;
 const DEFAULT_LIMIT: i64 = 20;
 
 #[derive(Insertable)]
-#[table_name = "articles"]
+#[diesel(table_name = articles)]
 struct NewArticle<'a> {
     title: &'a str,
     description: &'a str,
@@ -27,7 +28,7 @@ struct NewArticle<'a> {
 }
 
 pub fn create(
-    conn: &PgConnection,
+    conn: &mut PgConnection,
     author: i32,
     title: &str,
     description: &str,
@@ -82,7 +83,7 @@ pub struct FindArticles {
 }
 
 pub fn find(
-    conn: &PgConnection,
+    conn: &mut PgConnection,
     params: &FindArticles,
     user_id: Option<i32>,
 ) -> (Vec<ArticleJson>, i64) {
@@ -112,7 +113,7 @@ pub fn find(
             .get_result::<i32>(conn);
         match result {
             Ok(id) => {
-                query = query.filter(diesel::dsl::sql(&format!(
+                query = query.filter(diesel::dsl::sql::<Bool>(&format!(
                     "articles.id IN (SELECT favorites.article FROM favorites WHERE favorites.user = {})",
                     id
                 )));
@@ -141,7 +142,7 @@ pub fn find(
         .expect("Cannot load articles")
 }
 
-pub fn find_one(conn: &PgConnection, slug: &str, user_id: Option<i32>) -> Option<ArticleJson> {
+pub fn find_one(conn: &mut PgConnection, slug: &str, user_id: Option<i32>) -> Option<ArticleJson> {
     let article = articles::table
         .filter(articles::slug.eq(slug))
         .first::<Article>(conn)
@@ -162,7 +163,7 @@ pub struct FeedArticles {
 }
 
 // select * from articles where author in (select followed from follows where follower = 7);
-pub fn feed(conn: &PgConnection, params: &FeedArticles, user_id: i32) -> Vec<ArticleJson> {
+pub fn feed(conn: &mut PgConnection, params: &FeedArticles, user_id: i32) -> Vec<ArticleJson> {
     articles::table
         .filter(
             articles::author.eq_any(
@@ -191,8 +192,8 @@ pub fn feed(conn: &PgConnection, params: &FeedArticles, user_id: i32) -> Vec<Art
         .collect()
 }
 
-pub fn favorite(conn: &PgConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
-    conn.transaction::<_, diesel::result::Error, _>(|| {
+pub fn favorite(conn: &mut PgConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
+    conn.transaction::<_, diesel::result::Error, _>(|conn| {
         let article = diesel::update(articles::table.filter(articles::slug.eq(slug)))
             .set(articles::favorites_count.eq(articles::favorites_count + 1))
             .get_result::<Article>(conn)?;
@@ -210,8 +211,8 @@ pub fn favorite(conn: &PgConnection, slug: &str, user_id: i32) -> Option<Article
     .ok()
 }
 
-pub fn unfavorite(conn: &PgConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
-    conn.transaction::<_, diesel::result::Error, _>(|| {
+pub fn unfavorite(conn: &mut PgConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
+    conn.transaction::<_, diesel::result::Error, _>(|conn| {
         let article = diesel::update(articles::table.filter(articles::slug.eq(slug)))
             .set(articles::favorites_count.eq(articles::favorites_count - 1))
             .get_result::<Article>(conn)?;
@@ -225,7 +226,7 @@ pub fn unfavorite(conn: &PgConnection, slug: &str, user_id: i32) -> Option<Artic
 }
 
 #[derive(Deserialize, AsChangeset, Default, Clone)]
-#[table_name = "articles"]
+#[diesel(table_name = articles)]
 pub struct UpdateArticleData {
     title: Option<String>,
     description: Option<String>,
@@ -237,7 +238,7 @@ pub struct UpdateArticleData {
 }
 
 pub fn update(
-    conn: &PgConnection,
+    conn: &mut PgConnection,
     slug: &str,
     user_id: i32,
     mut data: UpdateArticleData,
@@ -255,7 +256,7 @@ pub fn update(
     Some(populate(conn, article, favorited))
 }
 
-pub fn delete(conn: &PgConnection, slug: &str, user_id: i32) {
+pub fn delete(conn: &mut PgConnection, slug: &str, user_id: i32) {
     let result = diesel::delete(
         articles::table.filter(articles::slug.eq(slug).and(articles::author.eq(user_id))),
     )
@@ -265,7 +266,7 @@ pub fn delete(conn: &PgConnection, slug: &str, user_id: i32) {
     }
 }
 
-fn is_favorite(conn: &PgConnection, article: &Article, user_id: i32) -> bool {
+fn is_favorite(conn: &mut PgConnection, article: &Article, user_id: i32) -> bool {
     use diesel::dsl::exists;
     use diesel::select;
 
@@ -274,7 +275,7 @@ fn is_favorite(conn: &PgConnection, article: &Article, user_id: i32) -> bool {
         .expect("Error loading favorited")
 }
 
-fn populate(conn: &PgConnection, article: Article, favorited: bool) -> ArticleJson {
+fn populate(conn: &mut PgConnection, article: Article, favorited: bool) -> ArticleJson {
     let author = users::table
         .find(article.author)
         .get_result::<User>(conn)
@@ -283,9 +284,9 @@ fn populate(conn: &PgConnection, article: Article, favorited: bool) -> ArticleJs
     article.attach(author, favorited)
 }
 
-pub fn tags(conn: &PgConnection) -> Vec<String> {
+pub fn tags(conn: &mut PgConnection) -> Vec<String> {
     articles::table
-        .select(diesel::dsl::sql("distinct unnest(tag_list)"))
+        .select(diesel::dsl::sql::<Text>("distinct unnest(tag_list)"))
         .load::<String>(conn)
         .expect("Cannot load tags")
 }

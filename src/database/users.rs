@@ -10,7 +10,7 @@ use scrypt::{
 use serde::Deserialize;
 
 #[derive(Insertable)]
-#[table_name = "users"]
+#[diesel(table_name = users)]
 pub struct NewUser<'a> {
     pub username: &'a str,
     pub email: &'a str,
@@ -36,7 +36,7 @@ impl From<Error> for UserCreationError {
 }
 
 pub fn create(
-    conn: &PgConnection,
+    conn: &mut PgConnection,
     username: &str,
     email: &str,
     password: &str,
@@ -60,7 +60,7 @@ pub fn create(
         .map_err(Into::into)
 }
 
-pub fn login(conn: &PgConnection, email: &str, password: &str) -> Option<User> {
+pub fn login(conn: &mut PgConnection, email: &str, password: &str) -> Option<User> {
     let user = users::table
         .filter(users::email.eq(email))
         .get_result::<User>(conn)
@@ -84,7 +84,7 @@ pub fn login(conn: &PgConnection, email: &str, password: &str) -> Option<User> {
     }
 }
 
-pub fn find(conn: &PgConnection, id: i32) -> Option<User> {
+pub fn find(conn: &mut PgConnection, id: i32) -> Option<User> {
     users::table
         .find(id)
         .get_result(conn)
@@ -94,7 +94,7 @@ pub fn find(conn: &PgConnection, id: i32) -> Option<User> {
 
 // TODO: remove clone when diesel will allow skipping fields
 #[derive(Deserialize, AsChangeset, Default, Clone)]
-#[table_name = "users"]
+#[diesel(table_name = users)]
 pub struct UpdateUserData {
     username: Option<String>,
     email: Option<String>,
@@ -102,11 +102,11 @@ pub struct UpdateUserData {
     image: Option<String>,
 
     // hack to skip the field
-    #[column_name = "hash"]
+    #[diesel(column_name = hash)]
     password: Option<String>,
 }
 
-pub fn update(conn: &PgConnection, id: i32, data: &UpdateUserData) -> Option<User> {
+pub fn update(conn: &mut PgConnection, id: i32, data: &UpdateUserData) -> Option<User> {
     let data = &UpdateUserData {
         password: None,
         ..data.clone()

@@ -8,14 +8,14 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 
 #[derive(Insertable)]
-#[table_name = "comments"]
+#[diesel(table_name = comments)]
 struct NewComment<'a> {
     body: &'a str,
     author: i32,
     article: i32,
 }
 
-pub fn create(conn: &PgConnection, author: i32, slug: &str, body: &str) -> CommentJson {
+pub fn create(conn: &mut PgConnection, author: i32, slug: &str, body: &str) -> CommentJson {
     let article_id = articles::table
         .select(articles::id)
         .filter(articles::slug.eq(slug))
@@ -34,12 +34,13 @@ pub fn create(conn: &PgConnection, author: i32, slug: &str, body: &str) -> Comme
 
     diesel::insert_into(comments::table)
         .values(new_comment)
+        // .execute(conn)
         .get_result::<Comment>(conn)
         .expect("Error creating comment")
         .attach(author)
 }
 
-pub fn find_by_slug(conn: &PgConnection, slug: &str) -> Vec<CommentJson> {
+pub fn find_by_slug(conn: &mut PgConnection, slug: &str) -> Vec<CommentJson> {
     let result = comments::table
         .inner_join(articles::table)
         .inner_join(users::table)
@@ -54,7 +55,7 @@ pub fn find_by_slug(conn: &PgConnection, slug: &str) -> Vec<CommentJson> {
         .collect()
 }
 
-pub fn delete(conn: &PgConnection, author: i32, slug: &str, comment_id: i32) {
+pub fn delete(conn: &mut PgConnection, author: i32, slug: &str, comment_id: i32) {
     use diesel::dsl::exists;
     use diesel::select;
 
