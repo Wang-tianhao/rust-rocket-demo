@@ -1,14 +1,14 @@
 table! {
     articles (id) {
-        id -> Int4,
+        id -> Int8,
         slug -> Text,
         title -> Text,
         description -> Text,
         body -> Text,
         author -> Int4,
         tag_list -> Array<Text>,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
         favorites_count -> Int4,
     }
 }
@@ -17,17 +17,17 @@ table! {
     comments (id) {
         id -> Int4,
         body -> Text,
-        article -> Int4,
+        article -> Int8,
         author -> Int4,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
 table! {
     favorites (user, article) {
         user -> Int4,
-        article -> Int4,
+        article -> Int8,
     }
 }
 

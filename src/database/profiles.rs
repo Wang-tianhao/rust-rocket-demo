@@ -1,11 +1,11 @@
 use crate::schema::{follows, users};
 use diesel;
-use diesel::pg::PgConnection;
+use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
 
 use crate::models::user::{Profile, User};
 
-pub fn find(conn: &mut PgConnection, name: &str, user_id: Option<i32>) -> Option<Profile> {
+pub fn find(conn: &mut MysqlConnection, name: &str, user_id: Option<i32>) -> Option<Profile> {
     let user = users::table
         .filter(users::username.eq(name))
         .get_result(conn)
@@ -19,7 +19,7 @@ pub fn find(conn: &mut PgConnection, name: &str, user_id: Option<i32>) -> Option
     Some(user.to_profile(following))
 }
 
-fn is_following(conn: &mut PgConnection, user: &User, user_id: i32) -> bool {
+fn is_following(conn: &mut MysqlConnection, user: &User, user_id: i32) -> bool {
     use diesel::dsl::exists;
     use diesel::select;
 
@@ -28,7 +28,7 @@ fn is_following(conn: &mut PgConnection, user: &User, user_id: i32) -> bool {
         .expect("Error loading following")
 }
 
-pub fn follow(conn: &mut PgConnection, followed_name: &str, follower_id: i32) -> Option<Profile> {
+pub fn follow(conn: &mut MysqlConnection, followed_name: &str, follower_id: i32) -> Option<Profile> {
     let followed = users::table
         .filter(users::username.eq(followed_name))
         .get_result::<User>(conn)
@@ -45,7 +45,7 @@ pub fn follow(conn: &mut PgConnection, followed_name: &str, follower_id: i32) ->
     Some(followed.to_profile(true))
 }
 
-pub fn unfollow(conn: &mut PgConnection, followed_name: &str, follower_id: i32) -> Option<Profile> {
+pub fn unfollow(conn: &mut MysqlConnection, followed_name: &str, follower_id: i32) -> Option<Profile> {
     let followed = users::table
         .filter(users::username.eq(followed_name))
         .get_result::<User>(conn)

@@ -4,7 +4,7 @@ use crate::schema::articles;
 use crate::schema::comments;
 use crate::schema::users;
 use diesel;
-use diesel::pg::PgConnection;
+use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
 
 #[derive(Insertable)]
@@ -12,14 +12,14 @@ use diesel::prelude::*;
 struct NewComment<'a> {
     body: &'a str,
     author: i32,
-    article: i32,
+    article: i64,
 }
 
-pub fn create(conn: &mut PgConnection, author: i32, slug: &str, body: &str) -> CommentJson {
+pub fn create(conn: &mut MysqlConnection, author: i32, slug: &str, body: &str) -> CommentJson {
     let article_id = articles::table
         .select(articles::id)
         .filter(articles::slug.eq(slug))
-        .get_result::<i32>(conn)
+        .get_result::<i64>(conn)
         .expect("Cannot find article id");
     let new_comment = &NewComment {
         body,
@@ -31,16 +31,20 @@ pub fn create(conn: &mut PgConnection, author: i32, slug: &str, body: &str) -> C
         .find(author)
         .get_result::<User>(conn)
         .expect("Error loading author");
-
-    diesel::insert_into(comments::table)
+    let comment = conn.transaction::<Comment, diesel::result::Error, _>(|conn| {
+        diesel::insert_into(comments::table)
         .values(new_comment)
-        // .execute(conn)
-        .get_result::<Comment>(conn)
-        .expect("Error creating comment")
-        .attach(author)
+        .execute(conn)?;
+        // .get_result::<Comment>(conn)
+        // .expect("Error creating comment");
+        // .attach(author)
+        comments::table.order(comments::id.desc()).first::<Comment>(conn)
+    });
+    comment.expect("error").attach(author)
+
 }
 
-pub fn find_by_slug(conn: &mut PgConnection, slug: &str) -> Vec<CommentJson> {
+pub fn find_by_slug(conn: &mut MysqlConnection, slug: &str) -> Vec<CommentJson> {
     let result = comments::table
         .inner_join(articles::table)
         .inner_join(users::table)
@@ -55,7 +59,7 @@ pub fn find_by_slug(conn: &mut PgConnection, slug: &str) -> Vec<CommentJson> {
         .collect()
 }
 
-pub fn delete(conn: &mut PgConnection, author: i32, slug: &str, comment_id: i32) {
+pub fn delete(conn: &mut MysqlConnection, author: i32, slug: &str, comment_id: i32) {
     use diesel::dsl::exists;
     use diesel::select;
 

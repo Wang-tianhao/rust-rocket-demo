@@ -6,7 +6,7 @@ pub mod users;
 #[database("diesel_mysql_pool")]
 pub struct Db(diesel::MysqlConnection);
 
-use diesel::pg::Pg;
+use diesel::mysql::Mysql;
 use diesel::prelude::*;
 use diesel::query_builder::*;
 use diesel::query_dsl::methods::LoadQuery;
@@ -51,11 +51,11 @@ impl<T: Query> Query for OffsetLimited<T> {
 
 impl<T> RunQueryDsl<MysqlConnection> for OffsetLimited<T> {}
 
-impl<T> QueryFragment<Pg> for OffsetLimited<T>
+impl<T> QueryFragment<Mysql> for OffsetLimited<T>
 where
-    T: QueryFragment<Pg>,
+    T: QueryFragment<Mysql>,
 {
-    fn walk_ast<'a>(&'a self, mut out: AstPass<'_, 'a, Pg>) -> QueryResult<()> {
+    fn walk_ast<'a>(&'a self, mut out: AstPass<'_, 'a, Mysql>) -> QueryResult<()> {
         out.push_sql("SELECT *, COUNT(*) OVER () FROM (");
         self.query.walk_ast(out.reborrow())?;
         out.push_sql(") t LIMIT ");

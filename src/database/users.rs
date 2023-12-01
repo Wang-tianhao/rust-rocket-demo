@@ -1,6 +1,6 @@
 use crate::models::user::User;
 use crate::schema::users;
-use diesel::pg::PgConnection;
+use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error};
 use scrypt::{
@@ -36,7 +36,7 @@ impl From<Error> for UserCreationError {
 }
 
 pub fn create(
-    conn: &mut PgConnection,
+    conn: &mut MysqlConnection,
     username: &str,
     email: &str,
     password: &str,
@@ -60,7 +60,7 @@ pub fn create(
         .map_err(Into::into)
 }
 
-pub fn login(conn: &mut PgConnection, email: &str, password: &str) -> Option<User> {
+pub fn login(conn: &mut MysqlConnection, email: &str, password: &str) -> Option<User> {
     let user = users::table
         .filter(users::email.eq(email))
         .get_result::<User>(conn)
@@ -84,7 +84,7 @@ pub fn login(conn: &mut PgConnection, email: &str, password: &str) -> Option<Use
     }
 }
 
-pub fn find(conn: &mut PgConnection, id: i32) -> Option<User> {
+pub fn find(conn: &mut MysqlConnection, id: i32) -> Option<User> {
     users::table
         .find(id)
         .get_result(conn)
@@ -106,7 +106,7 @@ pub struct UpdateUserData {
     password: Option<String>,
 }
 
-pub fn update(conn: &mut PgConnection, id: i32, data: &UpdateUserData) -> Option<User> {
+pub fn update(conn: &mut MysqlConnection, id: i32, data: &UpdateUserData) -> Option<User> {
     let data = &UpdateUserData {
         password: None,
         ..data.clone()

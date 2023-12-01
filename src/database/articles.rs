@@ -12,6 +12,9 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::Deserialize;
 use slug;
 use crate::database::OffsetLimit;
+use diesel::result::Error;
+
+
 
 const SUFFIX_LEN: usize = 6;
 const DEFAULT_LIMIT: i64 = 20;
@@ -43,17 +46,22 @@ pub fn create(
         tag_list,
         slug: &slugify(title),
     };
+    // use crate::schema::articles::dsl::*;
+    use crate::schema::users::dsl::*;
+    use crate::schema::articles::dsl::articles;
+    use crate::schema::articles::dsl::id as article_id;
 
-    let author = users::table
-        .find(author)
-        .get_result::<User>(conn)
-        .expect("Error loading author");
+    let author = users.filter(id.eq(author)).first(conn).expect("Error loading author");
+    let inserted_article = conn.transaction::<Article, Error, _>(|conn| {
+        diesel::insert_into(articles)
+            .values(new_article)
+            .execute(conn)
+            .expect("Error creating article");
+            // .attach(author, false);
 
-    diesel::insert_into(articles::table)
-        .values(new_article)
-        .get_result::<Article>(conn)
-        .expect("Error creating article")
-        .attach(author, false)
+        articles.order(article_id.desc()).first(conn)
+    });
+    inserted_article.expect("error").attach(author, false)
 }
 
 fn slugify(title: &str) -> String {
@@ -243,8 +251,8 @@ pub fn update(
     user_id: i32,
     mut data: UpdateArticleData,
 ) -> Option<ArticleJson> {
-    if let Some(ref title) = data.title {
-        data.slug = Some(slugify(&title));
+    if let Some(ref t) = data.title {
+        data.slug = Some(slugify(&t));
     }
     // TODO: check for not_found
     let article = diesel::update(articles::table.filter(articles::slug.eq(slug)))
