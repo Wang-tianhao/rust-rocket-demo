@@ -1,6 +1,6 @@
 use crate::config::DATE_FORMAT;
 use crate::models::user::User;
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use serde::Serialize;
 
 #[derive(Queryable)]
@@ -11,9 +11,9 @@ pub struct Article {
     pub description: String,
     pub body: String,
     pub author: i32,
-    pub tag_list: Vec<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub tag_list: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
     pub favorites_count: i32,
 }
 
@@ -44,7 +44,7 @@ pub struct ArticleJson {
     pub description: String,
     pub body: String,
     pub author: User,
-    pub tag_list: Vec<String>,
+    pub tag_list: String,
     pub created_at: String,
     pub updated_at: String,
     pub favorites_count: i32,

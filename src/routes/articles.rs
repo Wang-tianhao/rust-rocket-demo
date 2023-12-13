@@ -19,7 +19,7 @@ pub struct NewArticleData {
     #[validate(length(min = 1))]
     body: Option<String>,
     #[serde(rename = "tagList")]
-    tag_list: Vec<String>,
+    tag_list: Option<String>,
 }
 
 #[post("/articles", format = "json", data = "<new_article>")]
@@ -34,6 +34,7 @@ pub async fn post_articles(
     let title = extractor.extract("title", new_article.title);
     let description = extractor.extract("description", new_article.description);
     let body = extractor.extract("body", new_article.body);
+    let tag_list = extractor.extract("tag_list", new_article.tag_list);
     extractor.check()?;
 
     let article = db
@@ -44,7 +45,7 @@ pub async fn post_articles(
                 &title,
                 &description,
                 &body,
-                &new_article.tag_list,
+                &tag_list,
             )
         })
         .await;

@@ -1,16 +1,16 @@
 use crate::config::DATE_FORMAT;
 use crate::models::user::User;
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use serde::Serialize;
 
 #[derive(Queryable)]
 pub struct Comment {
     pub id: i32,
     pub body: String,
-    pub article: i64,
+    pub article: i32,
     pub author: i32,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 impl Comment {

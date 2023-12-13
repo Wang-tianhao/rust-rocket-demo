@@ -1,3 +1,4 @@
+use crate::database::OffsetLimit;
 use crate::models::article::{Article, ArticleJson};
 use crate::models::user::User;
 use crate::schema::articles;
@@ -7,14 +8,11 @@ use crate::schema::users;
 use diesel;
 use diesel::mysql::MysqlConnection;
 use diesel::prelude::*;
+use diesel::result::Error;
 use diesel::sql_types::{Bool, Text};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::Deserialize;
 use slug;
-use crate::database::OffsetLimit;
-use diesel::result::Error;
-
-
 
 const SUFFIX_LEN: usize = 6;
 const DEFAULT_LIMIT: i64 = 20;
@@ -27,7 +25,7 @@ struct NewArticle<'a> {
     body: &'a str,
     slug: &'a str,
     author: i32,
-    tag_list: &'a Vec<String>,
+    tag_list: &'a str,
 }
 
 pub fn create(
@@ -36,7 +34,7 @@ pub fn create(
     title: &str,
     description: &str,
     body: &str,
-    tag_list: &Vec<String>,
+    tag_list: &str,
 ) -> ArticleJson {
     let new_article = &NewArticle {
         title,
@@ -47,17 +45,20 @@ pub fn create(
         slug: &slugify(title),
     };
     // use crate::schema::articles::dsl::*;
-    use crate::schema::users::dsl::*;
     use crate::schema::articles::dsl::articles;
     use crate::schema::articles::dsl::id as article_id;
+    use crate::schema::users::dsl::*;
 
-    let author = users.filter(id.eq(author)).first(conn).expect("Error loading author");
+    let author = users
+        .filter(id.eq(author))
+        .first(conn)
+        .expect("Error loading author");
     let inserted_article = conn.transaction::<Article, Error, _>(|conn| {
         diesel::insert_into(articles)
             .values(new_article)
             .execute(conn)
             .expect("Error creating article");
-            // .attach(author, false);
+        // .attach(author, false);
 
         articles.order(article_id.desc()).first(conn)
     });
@@ -112,7 +113,7 @@ pub fn find(
         query = query.filter(users::username.eq(author))
     }
     if let Some(ref tag) = params.tag {
-        query = query.or_filter(articles::tag_list.contains(vec![tag]))
+        query = query.or_filter(articles::tag_list.like(tag))
     }
     if let Some(ref favorited) = params.favorited {
         let result = users::table
@@ -150,7 +151,11 @@ pub fn find(
         .expect("Cannot load articles")
 }
 
-pub fn find_one(conn: &mut MysqlConnection, slug: &str, user_id: Option<i32>) -> Option<ArticleJson> {
+pub fn find_one(
+    conn: &mut MysqlConnection,
+    slug: &str,
+    user_id: Option<i32>,
+) -> Option<ArticleJson> {
     let article = articles::table
         .filter(articles::slug.eq(slug))
         .first::<Article>(conn)
@@ -242,7 +247,7 @@ pub struct UpdateArticleData {
     #[serde(skip)]
     slug: Option<String>,
     #[serde(rename = "tagList")]
-    tag_list: Vec<String>,
+    tag_list: Option<String>,
 }
 
 pub fn update(

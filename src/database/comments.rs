@@ -12,14 +12,14 @@ use diesel::prelude::*;
 struct NewComment<'a> {
     body: &'a str,
     author: i32,
-    article: i64,
+    article: i32,
 }
 
 pub fn create(conn: &mut MysqlConnection, author: i32, slug: &str, body: &str) -> CommentJson {
     let article_id = articles::table
         .select(articles::id)
         .filter(articles::slug.eq(slug))
-        .get_result::<i64>(conn)
+        .get_result(conn)
         .expect("Cannot find article id");
     let new_comment = &NewComment {
         body,
