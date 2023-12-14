@@ -48,7 +48,6 @@ pub fn from_env() -> Figment {
         env::var("DATABASE_URL").expect("No DATABASE_URL environment variable found");
     database_config.insert("url", database_url);
     databases.insert("diesel_mysql_pool", database_config);
-
     Config::figment()
         .merge(("port", port))
         .merge(("databases", databases))

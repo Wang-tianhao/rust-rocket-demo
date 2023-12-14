@@ -53,11 +53,17 @@ pub fn create(
         email,
         hash: &hash[..],
     };
-
-    diesel::insert_into(users::table)
-        .values(new_user)
-        .get_result::<User>(conn)
-        .map_err(Into::into)
+    conn.transaction::<User, Error, _>(|conn| {
+        diesel::insert_into(users::table)
+            .values(new_user)
+            .execute(conn)?;
+        // .map_err(Into::into)
+        users::table.order(users::id.desc()).first(conn)
+        // match created_user {
+        //     Ok(user) => return Ok(user),
+        //     Err(err) => return Err(err.into()),
+        // }
+    }).map_err(|err|err.into())
 }
 
 pub fn login(conn: &mut MysqlConnection, email: &str, password: &str) -> Option<User> {
@@ -111,8 +117,11 @@ pub fn update(conn: &mut MysqlConnection, id: i32, data: &UpdateUserData) -> Opt
         password: None,
         ..data.clone()
     };
-    diesel::update(users::table.find(id))
-        .set(data)
-        .get_result(conn)
-        .ok()
+    let user = conn.transaction::<User, Error, _>(|conn| {
+        diesel::update(users::table.find(id))
+            .set(data)
+            .execute(conn)?;
+        users::table.find(id).get_result(conn)
+    });
+    Some(user.expect("error"))
 }

@@ -123,7 +123,7 @@ pub fn find(
         match result {
             Ok(id) => {
                 query = query.filter(diesel::dsl::sql::<Bool>(&format!(
-                    "articles.id IN (SELECT favorites.article FROM favorites WHERE favorites.user = {})",
+                    "articles.id IN (SELECT favorites.article FROM favorites WHERE favorites.user = {:?})",
                     id
                 )));
             }
@@ -207,9 +207,13 @@ pub fn feed(conn: &mut MysqlConnection, params: &FeedArticles, user_id: i32) -> 
 
 pub fn favorite(conn: &mut MysqlConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
     conn.transaction::<_, diesel::result::Error, _>(|conn| {
-        let article = diesel::update(articles::table.filter(articles::slug.eq(slug)))
-            .set(articles::favorites_count.eq(articles::favorites_count + 1))
-            .get_result::<Article>(conn)?;
+        let article = conn.transaction::<Article, Error, _>(|conn| {
+            diesel::update(articles::table.filter(articles::slug.eq(slug)))
+                .set(articles::favorites_count.eq(articles::favorites_count + 1))
+                .execute(conn)?;
+            articles::table.filter(articles::slug.eq(slug)).get_result(conn)
+        }).expect("Error getting articles");
+            // .get_result::<Article>(conn)?;
 
         diesel::insert_into(favorites::table)
             .values((
@@ -226,9 +230,13 @@ pub fn favorite(conn: &mut MysqlConnection, slug: &str, user_id: i32) -> Option<
 
 pub fn unfavorite(conn: &mut MysqlConnection, slug: &str, user_id: i32) -> Option<ArticleJson> {
     conn.transaction::<_, diesel::result::Error, _>(|conn| {
-        let article = diesel::update(articles::table.filter(articles::slug.eq(slug)))
-            .set(articles::favorites_count.eq(articles::favorites_count - 1))
-            .get_result::<Article>(conn)?;
+        let article: Article = conn.transaction(|conn| {
+            diesel::update(articles::table.filter(articles::slug.eq(slug)))
+                .set(articles::favorites_count.eq(articles::favorites_count - 1))
+                .execute(conn)?;
+            articles::table.filter(articles::slug.eq(slug)).get_result(conn) 
+                // .get_result::<Article>(conn)?;
+        }).expect("error getting articles");
 
         diesel::delete(favorites::table.find((user_id, article.id))).execute(conn)?;
 
@@ -260,10 +268,13 @@ pub fn update(
         data.slug = Some(slugify(&t));
     }
     // TODO: check for not_found
-    let article = diesel::update(articles::table.filter(articles::slug.eq(slug)))
-        .set(&data)
-        .get_result(conn)
-        .expect("Error loading article");
+    let article = conn.transaction(|conn|{
+        diesel::update(articles::table.filter(articles::slug.eq(slug)))
+            .set(&data)
+            .execute(conn)?;
+            // .get_result(conn)
+            articles::table.filter(articles::slug.eq(slug)).first(conn) 
+    }).expect("Error loading article");
 
     let favorited = is_favorite(conn, &article, user_id);
     Some(populate(conn, article, favorited))
